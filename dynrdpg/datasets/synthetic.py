@@ -59,7 +59,7 @@ def simulate_network_rw(n_nodes=50, n_time_steps=20,
 
 
 def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3., density=0.2, random_state=42):
+                        length_scale=3, density=0.2, random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps)
     dist_sq = euclidean_distances(ts[:, None], squared=True)

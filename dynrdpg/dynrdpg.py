@@ -257,10 +257,10 @@ class DynamicRDPG(object):
 
         return -2 * (lppd - p_waic)
     
-    def forecast_positions(self, k_steps=1, n_samples=100):
+    def forecast_positions(self, k_steps=1, n_samples=None):
         rng = check_random_state(self.random_state)
-        _, n_time_steps, n_nodes, n_features = self.samples_['X'].shape
-        n_samples = min(n_samples, self.samples_['X'].shape[0])
+        n_mcmc_samples, n_time_steps, n_nodes, n_features = self.samples_['X'].shape
+        n_samples = n_mcmc_samples if n_samples is None else max(n_samples, n_mcmc_samples)
         samples = np.zeros((n_samples, k_steps, n_nodes, n_features))
         for i in range(n_samples):
             sigma = np.sqrt(self.samples_['sigma'][i])
@@ -285,8 +285,8 @@ class DynamicRDPG(object):
 
         return samples
 
-    def forecast(self, k_steps=1, n_samples=100):
-        samples = self.forecast_positions(k_steps=k_steps, n_samples=n_samples)
+    def forecast(self, k_steps=1, n_samples=None):
+        samples = self.forecast_positions(k_steps=k_steps, n_samples=None)
         
         n_samples, k_steps, n_nodes, _ = samples.shape
         probas = np.zeros((n_samples, k_steps, n_nodes, n_nodes))
