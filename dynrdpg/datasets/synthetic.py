@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 
+from patsy import cr
 from sklearn.utils import check_random_state
 from sklearn.metrics import euclidean_distances
 from scipy.special import expit
@@ -79,6 +80,38 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
     Ys = []
     probas = []
     for t in range(n_time_steps):
+        Y = np.zeros((n_nodes, n_nodes))
+
+        X[t] *= np.sqrt(scale)
+        y = rng.binomial(1, np.clip(scale * means[t], 0, 1))
+        probas.append(np.clip(X[t] @ X[t].T, 0, 1))
+
+        Y[subdiag] = y
+        Y += Y.T
+
+        Y = sp.csr_array(Y, dtype=float) 
+        Ys.append(Y)
+
+    return Ys, X, np.stack(probas)
+
+def simulate_network_ncr(n_nodes=100, n_time_steps=100, n_features=2, 
+                         df=5, k_steps=5, density=0.2, random_state=42):
+    rng = check_random_state(random_state)
+    ts = np.arange(n_time_steps + k_steps)
+    spline_basis = cr(ts, df, lower_bound=0, upper_bound=n_time_steps)
+    w = rng.dirichlet(np.ones(df), n_nodes * n_features).T
+    X = (spline_basis @ w).reshape(-1, n_nodes, n_features) / np.sqrt(n_features)
+
+    means = []
+    subdiag = np.tril_indices(n_nodes, k=-1)
+    for t in range(n_time_steps + k_steps):
+        means.append((X[t] @ X[t].T)[subdiag])
+
+    scale = density / np.mean(means)
+
+    Ys = []
+    probas = []
+    for t in range(n_time_steps + k_steps):
         Y = np.zeros((n_nodes, n_nodes))
 
         X[t] *= np.sqrt(scale)
