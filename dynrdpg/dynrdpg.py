@@ -57,6 +57,7 @@ class DynamicRDPG(object):
                  init_algorithm='ase',
                  scale='auto',
                  rw_order=2,
+                 prior_std=10,
                  is_binary=True,
                  sample_scale=True,
                  random_state=42):
@@ -64,6 +65,7 @@ class DynamicRDPG(object):
         self.init_algorithm = init_algorithm
         self.scale = scale
         self.rw_order = rw_order
+        self.prior_std = prior_std
         self.is_binary = is_binary
         self.sample_scale = sample_scale
         self.random_state = random_state
@@ -122,10 +124,17 @@ class DynamicRDPG(object):
                 XtX[t] += X[i, :, t][:, None] @ X[i, :, t][:, None].T 
             
         # the K matrix under a diffuse prior in Chan and Jeliazkov (2009).
-        # e.g. vec(X_i) ~ N_{Td}(0, (1/sigma_i^2) [D_r^T D \times I_d]) 
-        D = np.diff(np.eye(n_time_points), self.rw_order, axis=0)
+        # e.g. vec(X_i) ~ N_{md}(0, (1/sigma_i^2) [D_r^T D \otimes I_d]) 
+        D = np.diff(np.eye(n_time_points), self.rw_order, axis=0) 
         K = sp.dia_array(np.kron(D.T @ D, np.eye(self.n_features))) 
+        if self.prior_std is not None:
+            K_init = np.zeros((n_time_points, n_time_points))
+            for r in range(self.rw_order):
+                K_init[r, r] += (1. / (self.prior_std ** 2))
+            K_init = sp.dia_array(np.kron(K_init, np.eye(self.n_features)))
 
+
+        diag_loc = np.where(K.offsets == 0)[0]
         for idx in tqdm(range(n_burnin + n_samples)):
 
             # sample latent positions
@@ -146,8 +155,12 @@ class DynamicRDPG(object):
                 
                 # calculate P and its (upper) cholesky decomposition
                 precision = (1. / sigma[i]) * K
+                precision.data[diag_loc] += 0.5 * scale
+                if self.prior_std is not None:
+                    precision += K_init
+
                 P = sp.dia_array(precision + scale * sp.block_diag(XtX, format='dia'))
-                
+                 
                 # put P matrix into upper-diagonal form to perform banded cholesky
                 ab = np.zeros((self.rw_order * self.n_features + 1, P.shape[1]))
                 diag_id = np.where(P.offsets == 0)[0][0]
@@ -188,8 +201,13 @@ class DynamicRDPG(object):
             if self.sample_scale:
                 x = X.transpose((2, 0, 1))  # (n_time_steps, n_nodes, n_features)
                 XXt = np.einsum('tid,tjd->tij', x, x)[..., subdiag[0], subdiag[1]]
-                a = 0.25 * n_nodes * (n_nodes - 1) * n_time_points + 1e-3
-                b = 0.5 * np.sum((self.y_vec_ - XXt) ** 2) + 1e-3
+                #a = 0.25 * n_nodes * (n_nodes - 1) * n_time_points + 1e-3
+                #b = 0.5 * np.sum((self.y_vec_ - XXt) ** 2) + 1e-3
+                #a = 0.5 * n_nodes * n_nodes * n_time_points + 1e-3
+                a = 1e-3 + 0.25 * n_nodes * (n_nodes + 1) * n_time_points 
+                #a += 0.5 * n_nodes * n_time_points * self.n_features 
+                b = 1e-3 + 0.5 * np.sum((self.y_vec_ - XXt) ** 2) 
+                b += 0.25 * np.sum(x ** 2) 
                 scale = stats.gamma.rvs(a, scale = 1. / b)
             
             if idx >= n_burnin:
