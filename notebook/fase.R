@@ -48,7 +48,7 @@ for (t in 1:length(time_points)) {
 
 
 idx = 1
-qs = seq(4, 16, by = 2)
+qs = seq(4, 24, by = 2)
 model_select = matrix(0, nrow = length(qs),  ncol = 3)
 fits = list()
 start.time <- Sys.time()

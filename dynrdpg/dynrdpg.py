@@ -154,7 +154,7 @@ class DynamicRDPG(object):
                         XtY.append(np.sum(X[indices, :, t] * yt[:, None], axis=0))
                 
                 # calculate P and its (upper) cholesky decomposition
-                precision = (1. / sigma[i]) * K
+                precision = sp.dia_array((1. / sigma[i]) * K)
                 precision.data[diag_loc] += 0.5 * scale
                 if self.prior_std is not None:
                     precision += K_init
