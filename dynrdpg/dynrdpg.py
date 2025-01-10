@@ -303,14 +303,23 @@ class DynamicRDPG(object):
 
         return samples
 
-    def forecast(self, k_steps=1, n_samples=None):
+    def forecast(self, k_steps=1, n_samples=None, return_subdiag=True):
         samples = self.forecast_positions(k_steps=k_steps, n_samples=None)
         
         n_samples, k_steps, n_nodes, _ = samples.shape
-        probas = np.zeros((n_samples, k_steps, n_nodes, n_nodes))
+        if return_subdiag:
+            n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
+            probas = np.zeros((n_samples, k_steps, n_dyads))
+        else:
+            probas = np.zeros((n_samples, k_steps, n_nodes, n_nodes))
+        
+        subdiag = np.tril_indices(n_nodes, k=-1)
         for i in range(samples.shape[0]):
             for t in range(k_steps):
-                probas[i, t] = samples[i, t] @ samples[i, t].T
+                if return_subdiag:
+                    probas[i, t] = (samples[i, t] @ samples[i, t].T)[subdiag]
+                else:
+                    probas[i, t] = samples[i, t] @ samples[i, t].T
         
         return np.clip(probas, 0, 1) if self.is_binary else probas
     

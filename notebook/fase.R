@@ -51,7 +51,7 @@ for (t in 1:length(time_points)) {
 k_steps = 5
 n_insample_steps = length(time_points) - k_steps
 idx = 1
-qs = seq(4, min(24, length(time_points)-1), by = 2)
+qs = seq(4, min(10, length(time_points)-1), by = 2)
 model_select = matrix(0, nrow = length(qs),  ncol = 3)
 fits = list()
 start.time <- Sys.time()
@@ -79,23 +79,25 @@ Z_forecast = Z_align[,,n_insample_steps]
 proba_forecast = pmin(pmax(tcrossprod(Z_forecast), 0), 1)
 subdiag = lower.tri(proba_forecast, diag = FALSE)
 proba_forecast = proba_forecast[subdiag]
-forecast_mse = numeric(k_steps)
-for (k in 1:k_steps) {
+forecast_mse = numeric(k_steps+1)
+for (k in 0:k_steps) {
     X_true = X[,,n_insample_steps + k]
     true_proba = pmin(pmax(tcrossprod(X_true), 0), 1)[subdiag]
-    forecast_mse[k] = mean((proba_forecast - true_proba) ^ 2)
+    forecast_mse[k+1] = mean((proba_forecast - true_proba) ^ 2)
 }
 
 data = data.frame(
     fase_mse = Z_mse,
-    fase_kstep_1 = forecast_mse[1],
-    fase_kstep_2 = forecast_mse[2],
-    fase_kstep_3 = forecast_mse[3],
-    fase_kstep_4 = forecast_mse[4],
-    fase_kstep_5 = forecast_mse[5],
+    fase_kstep_0 = forecast_mse[1],
+    fase_kstep_1 = forecast_mse[2],
+    fase_kstep_2 = forecast_mse[3],
+    fase_kstep_3 = forecast_mse[4],
+    fase_kstep_4 = forecast_mse[5],
+    fase_kstep_5 = forecast_mse[6]
 )
+print(data)
 
-out_file = paste0('result.csv')
-dir_name = paste0('output')
-dir.create(dir_name)
-write_csv(data, paste0(dire_name, '/', out_file))
+#out_file = paste0('result.csv')
+#dir_name = paste0('output')
+#dir.create(dir_name)
+#write_csv(data, paste0(dire_name, '/', out_file))
