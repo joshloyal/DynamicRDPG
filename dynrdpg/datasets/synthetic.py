@@ -142,12 +142,12 @@ def simulate_network_ncr(n_nodes=100, n_time_steps=100, n_features=2,
 
 
 def simulate_network_bspline(n_nodes=100, n_time_steps=100, n_features=2, 
-                         df=5, k_steps=5, density=0.2, random_state=42):
+                         df=5, k_buffer=5, k_steps=5, density=0.2, random_state=42):
 
     n_knots = df - 2
     
     rng = check_random_state(random_state)
-    ts = np.arange(n_time_steps)
+    ts = np.arange(n_time_steps - k_buffer)
     bspline = SplineTransformer(extrapolation='linear', n_knots=n_knots).fit(ts[:, None])
     
     ts = np.arange(n_time_steps + k_steps)
