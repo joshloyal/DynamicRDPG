@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from patsy import cr
+from sklearn.gaussian_process.kernels import RBF, Matern 
 from sklearn.utils import check_random_state
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import SplineTransformer
@@ -62,13 +63,21 @@ def simulate_network_rw(n_nodes=50, n_time_steps=20,
 
 
 def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3, density=0.2, random_state=42):
+                        length_scale=3, gp_type='rbf', nu=2.5,
+                        density=0.2, random_state=42):
     rng = check_random_state(random_state)
-    ts = np.arange(n_time_steps)
-    dist_sq = euclidean_distances(ts[:, None], squared=True)
-    ls = (length_scale/n_time_steps) ** 2
-    C = 5 * np.exp(-0.5 * dist_sq * ls )
-    X = rng.multivariate_normal(np.zeros_like(ts), cov=C,
+    ts = np.arange(n_time_steps).reshape(-1, 1)
+    dist_sq = euclidean_distances(ts, squared=True)
+    
+    if gp_type == 'rbf':
+        cov = 5 * RBF(length_scale=n_time_steps/length_scale)(ts)
+    else:
+        cov = 5 * Matern(length_scale=n_time_steps/length_scale, nu=nu)(ts)
+    
+    #ls = (length_scale/n_time_steps) ** 2 
+    #C = 5 * np.exp(-0.5 * dist_sq * ls )
+
+    X = rng.multivariate_normal(np.zeros_like(ts.ravel()), cov=cov,
                                 size=(n_nodes, n_features)).transpose((2, 0, 1))
     X = expit(X) / np.sqrt(n_features)
 

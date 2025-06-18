@@ -1,21 +1,26 @@
 import numpy as np
+import jax.numpy as jnp
+import numpyro.distributions as dist
 import scipy.sparse as sp
 import scipy.linalg as linalg
 import statsmodels.api as sm
 
 from tqdm import tqdm
+from jax import random, vmap
+from numpyro.contrib.control_flow import scan
+from math import ceil
+from numpyro.diagnostics import effective_sample_size, split_gelman_rubin
 from sklearn.utils import check_random_state
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 from scipy.linalg import block_diag, orthogonal_procrustes
 from scipy.special import expit, logsumexp
 from scipy import stats 
-
-import numpy as np
 
 
 def ase(A, k=2):
     eigvals, eigvec = sp.linalg.eigsh(A, k=k)
     return eigvec[:, ::-1] * np.sqrt(np.abs(eigvals)[::-1])
+
 
 def smooth_positions_procrustes(U):
     n_time_steps, _, _ = U.shape
@@ -49,6 +54,32 @@ def calculate_auc(Y, probas):
         y_true.append(Y[t])
     
     return roc_auc_score(np.concatenate(y_true), probas.ravel())
+
+
+def calculate_aupr(Y, probas):
+    n_time_steps, _ = Y.shape
+    y_true, y_pred = [], []
+    for t in range(n_time_steps):
+        y_true.append(Y[t])
+    
+    return average_precision_score(np.concatenate(y_true), probas.ravel())
+
+
+def posterior_predictive(rng_key, samples, stat_fun):
+    X = samples['X']
+    n_time_steps, n_nodes, _ = X.shape
+ 
+    # calculate likelihood
+    subdiag = jnp.tril_indices(n_nodes, k=-1)
+    def sample_network(carry, t):
+        U = carry
+        probas = jnp.clip((X[t] @ X[t].T)[subdiag], 0, 1)
+        y = dist.Bernoulli(probs=probas).sample(rng_key)
+        return U, y
+
+    _, y = scan(sample_network, X, jnp.arange(n_time_steps))
+
+    return stat_fun(y)
 
 
 class DynamicRDPG(object):
@@ -234,12 +265,24 @@ class DynamicRDPG(object):
                 self.probas_[t] = (self.X_[t] @ self.X_[t].T)[subdiag]
 
             self.auc_ = calculate_auc(self.y_vec_, np.clip(self.probas_, 0, 1))
+            self.aupr_ = calculate_aupr(self.y_vec_, np.clip(self.probas_, 0, 1))
         else:
             self.means_ = np.zeros((n_time_points, n_dyads))
             for t in range(n_time_points):
                 self.means_[t] = (self.X_[t] @ self.X_[t].T)[subdiag]
 
             self.rmse_ = np.sqrt(np.mean((self.y_vec_ - self.means_) ** 2))
+        
+        # convergence diagnostics
+        self.ess_ = np.zeros_like(self.X_)
+        self.r_hat_ = np.zeros_like(self.X_)
+        for t in range(self.X_.shape[0]):
+            for i in range(self.X_.shape[1]):
+                for d in range(self.X_.shape[2]):
+                    self.ess_[t, i, d] = effective_sample_size(
+                            self.samples_['X'][:,t, i, d][None])
+                    self.r_hat_[t, i, d] = split_gelman_rubin(
+                            self.samples_['X'][:,t, i, d][None])
 
         return self
 
@@ -334,3 +377,39 @@ class DynamicRDPG(object):
                 samples[i, t] = Xt @ Xt.T
 
         return np.clip(samples, 0, 1) if self.is_binary else samples
+    
+    def posterior_predictive(self, stat_fun, chunk_size=None, random_state=42):
+        if chunk_size is not None:
+            return self._chunked_posterior_predictive(
+                    stat_fun, chunk_size=chunk_size, random_state=random_state)
+
+        rng_key = random.PRNGKey(random_state)
+        
+        n_samples  = self.samples_['X'].shape[0]
+        vmap_args = (self.samples_, random.split(rng_key, n_samples))
+        return np.asarray(vmap(
+            lambda samples, rng_key : posterior_predictive(
+                rng_key, samples, stat_fun)
+            )(*vmap_args))
+
+    def _chunked_posterior_predictive(self, stat_fun, chunk_size=100, random_state=42):
+        rng_key = random.PRNGKey(random_state)
+        
+        n_samples  = self.samples_['X'].shape[0]
+        
+        out = []
+        n_chunks = ceil(n_samples / chunk_size)
+        for idx in range(n_chunks):
+            start = idx * chunk_size
+            end = start + chunk_size
+            chunked_samples = {
+                    k: v[start:end] for (k, v) in self.samples_.items()
+            }
+
+            vmap_args = (chunked_samples, random.split(rng_key, chunk_size))
+            out.append(np.asarray(vmap(
+                lambda samples, rng_key : posterior_predictive(
+                    rng_key, samples, stat_fun)
+                )(*vmap_args)))
+
+        return np.vstack(out)
