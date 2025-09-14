@@ -138,11 +138,7 @@ class DynamicRDPG(object):
             for t in range(n_time_points):
                 X[t] = ase(Y[t], k=self.n_features)
             X = smooth_positions_procrustes(X).transpose((1, 2, 0))
-
-            #if self.scale == 'auto':
-            #    XXt = np.einsum('tid,tjd->tij', X, X)[..., subdiag[0], subdiag[1]]
-            #    self.scale = 1. / np.mean((self.y_vec_ - XXt) ** 2)
-            
+ 
             sigma = np.mean(np.diff(X, axis=2) ** 2, axis=(1, 2))
             nu = np.ones(n_nodes)
             scale = self.scale
@@ -182,7 +178,8 @@ class DynamicRDPG(object):
                         XtY.append(np.sum(X[indices, :, t], axis=0))
                     else:
                         yt = Y[t].data[Y[t].indptr[i]:Y[t].indptr[i+1]]
-                        XtY.append(np.sum(X[indices, :, t] * yt[:, None], axis=0))
+                        XtY.append(
+                                np.sum(X[indices, :, t] * yt[:, None], axis=0))
                 
                 # calculate P and its (upper) cholesky decomposition
                 precision = sp.dia_array((1. / sigma[i]) * K)
@@ -190,22 +187,24 @@ class DynamicRDPG(object):
                 if self.prior_std is not None:
                     precision += K_init
 
-                P = sp.dia_array(precision + scale * sp.block_diag(XtX, format='dia'))
+                P = sp.dia_array(
+                        precision + scale * sp.block_diag(XtX, format='dia'))
                  
-                # put P matrix into upper-diagonal form to perform banded cholesky
-                ab = np.zeros((self.rw_order * self.n_features + 1, P.shape[1]))
+                # put P matrix into upper-diagonal form to perform 
+                # banded cholesky
+                ab = np.zeros(
+                        (self.rw_order * self.n_features + 1, P.shape[1]))
                 diag_id = np.where(P.offsets == 0)[0][0]
                 for k, offset_id in enumerate(P.offsets[diag_id:]):
                     ab[offset_id] = P.data[diag_id + k]
                 L = linalg.cholesky_banded(ab[::-1])
-                #L = linalg.cholesky_banded(P.T.data[:(self.n_features+1)])
 
                 # solve for mean
-                X_hat = linalg.cho_solve_banded((L, False), scale * np.ravel(XtY))
+                X_hat = linalg.cho_solve_banded(
+                        (L, False), scale * np.ravel(XtY))
                 
                 # sample z ~ N(0, [L.T @ L]^{-1})
                 # convert L to a sparse array
-                #offsets = np.arange(self.n_features+1)[::-1]
                 offsets = np.arange(L.shape[0])[::-1]
                 k = n_time_points * self.n_features
                 L = sp.dia_array((L, offsets) , shape=(k, k))
@@ -222,21 +221,21 @@ class DynamicRDPG(object):
                     
                  
             # sample transition variances from a half-cauchy prior
-            shape_sigma = 0.5 * ((n_time_points - self.rw_order) * self.n_features + 1)
-            scale_sigma = 0.5 * np.sum(np.diff(X, self.rw_order, axis=2) ** 2, axis=(1, 2)) + (1. / nu)
-            sigma = stats.invgamma.rvs(shape_sigma, scale=scale_sigma, random_state=rng)
+            shape_sigma = 0.5 * (
+                    (n_time_points - self.rw_order) * self.n_features + 1)
+            scale_sigma = (0.5 * np.sum(
+                    np.diff(X, self.rw_order, axis=2) ** 2, axis=(1, 2)) 
+                           + (1. / nu))
+            sigma = stats.invgamma.rvs(
+                    shape_sigma, scale=scale_sigma, random_state=rng)
             nu = stats.invgamma.rvs(1, 1 + (1. / sigma), random_state=rng)
 
             # sample scale
-            # XXX: Computationally expensive
             if self.sample_scale:
                 x = X.transpose((2, 0, 1))  # (n_time_steps, n_nodes, n_features)
-                XXt = np.einsum('tid,tjd->tij', x, x)[..., subdiag[0], subdiag[1]]
-                #a = 0.25 * n_nodes * (n_nodes - 1) * n_time_points + 1e-3
-                #b = 0.5 * np.sum((self.y_vec_ - XXt) ** 2) + 1e-3
-                #a = 0.5 * n_nodes * n_nodes * n_time_points + 1e-3
+                XXt = np.einsum(
+                        'tid,tjd->tij', x, x)[..., subdiag[0], subdiag[1]]
                 a = 1e-3 + 0.25 * n_nodes * (n_nodes + 1) * n_time_points 
-                #a += 0.5 * n_nodes * n_time_points * self.n_features 
                 b = 1e-3 + 0.5 * np.sum((self.y_vec_ - XXt) ** 2) 
                 b += 0.25 * np.sum(x ** 2) 
                 scale = stats.gamma.rvs(a, scale = 1. / b)
@@ -304,15 +303,6 @@ class DynamicRDPG(object):
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
         loglik = -0.5 * (self.y_vec_ - XXt) ** 2
         
-        #n_samples, n_time_steps, n_nodes, _ = self.samples_['X'].shape
-        #n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
-        #loglik = np.zeros((n_samples, n_time_steps, n_dyads))
-        #subdiag = np.tril_indices(n_nodes, k=-1)
-        #for i in range(n_samples):
-        #    X = self.samples_['X'][i]
-        #    for t in range(n_time_steps):
-        #        loglik[i, t] = -0.5 * (self.y_vec_[t] - (X[t] @ X[t].T)[subdiag]) ** 2
-
         lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
         p_waic = loglik.var(axis=0).sum()
 

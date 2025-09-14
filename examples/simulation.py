@@ -15,7 +15,7 @@ from dynrdpg.datasets import simulate_network_gp
 
 
 k_steps = 5
-n_time_steps = 100
+n_time_steps = 25
 n_nodes = 100
 density = 0.1
 rw_order = 2
