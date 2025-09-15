@@ -17,11 +17,6 @@ exec(open(os.path.join(HERE, 'dynrdpg', 'version.py')).read())
 with open('requirements.txt') as f:
     INSTALL_REQUIRES = [l.strip() for l in f.readlines() if l]
 
-
-with open('test_requirements.txt') as f:
-    TEST_REQUIRES = [l.strip() for l in f.readlines() if l]
-
-
 try:
     import numpy
 except ImportError:
@@ -40,7 +35,7 @@ except ImportError:
 
 DISTNAME = 'Dynamic RDPG'
 DESCRIPTION = 'Dynamic RDPG'
-with open('README.rst') as f:
+with open('README.md') as f:
     LONG_DESCRIPTION = f.read()
 MAINTAINER = 'Joshua D. Loyal'
 MAINTAINER_EMAIL = 'jloyal25@gmail.com'
@@ -67,9 +62,6 @@ def setup_package():
         include_package_data=True,
         packages=find_packages(),
         install_requires=INSTALL_REQUIRES,
-        extras_require={'test': TEST_REQUIRES},
-        setup_requires=['pytest-runner'],
-        tests_require=TEST_REQUIRES,
     )
 if __name__ == '__main__':
     setup_package()
