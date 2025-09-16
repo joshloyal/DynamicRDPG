@@ -6,7 +6,7 @@
 
 This package provides an interface for the model described in
 "Generalized Bayesian Inference for Dynamic Random Dot Product Graphs." Inference is performed using
-an efficient Gibbs sampler. For more details, see [Loyal (2024)](https://arxiv.org/abs/2401.09715).
+an efficient Gibbs sampler. 
 
 Dependencies
 ------------
