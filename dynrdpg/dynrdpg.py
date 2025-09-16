@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 import scipy.sparse as sp
 import scipy.linalg as linalg
-import statsmodels.api as sm
 
 from tqdm import tqdm
 from jax import random, vmap
