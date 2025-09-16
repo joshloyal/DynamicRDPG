@@ -43,12 +43,15 @@ from dynrdpg.datasets import simulate_network_bspline
 
 k_steps = 5
 
+# load synthetic network
 Y, X_true, probas_true = simulate_network_bspline(
         n_nodes=200, n_time_steps=100, density=0.2,
         k_steps=k_steps, random_state=123)
 
 
-# 105 networks (100 in-sample, 5 forecasting) with 200 nodes each 
+# 105 networks (100 in-sample, 5 forecasting) with 200 nodes each
+# the adjacency matrices are stored as numpy arrays
+# of shape (n_time_steps, n_nodes, n_nodes)
 Y.shape
 #>>> (105, 200, 200)
 
