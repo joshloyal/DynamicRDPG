@@ -20,7 +20,7 @@ rdpg = DynamicRDPG(n_features=2, rw_order=2, random_state=42)
 
 # run the MCMC algorithm for 250 burn-in iterations and collect 500 post burn-in samples
 # XXX: In practice the number of burn-in and post burn in samples should be larger
-rdpg.sample(Y, n_burnin=250, n_samples=500)
+rdpg.sample(Y[:-k_steps], n_burnin=250, n_samples=500)
 
 
 # compute the sampled in-sample edge probabilities 
@@ -38,12 +38,9 @@ probas_forecast.shape
 # plot the in-sample and forecast edge probability between node 2 and node 3
 # with 95% point-wise credible bands
 i, j = 1, 2
-n_time_steps, n_nodes, _ = Y.shape
+n_time_steps, n_nodes, _ = Y[:-k_steps].shape
 
 fig, ax = plt.subplots(figsize=(10, 6))
-
-# plot true probabilities
-ax.plot(probas_true[:, i, j], 'k.--', lw=0.5, label='Truth')
 
 # plot in-sample predictions with 95% pointwise credible intervals
 cis = np.quantile(probas_pred[:, :, i, j], q=[0.025, 0.5, 0.975], axis=0)
@@ -55,6 +52,9 @@ cis = np.quantile(probas_forecast[:, :, i, j], q=[0.025, 0.5, 0.975], axis=0)
 ts = np.arange(n_time_steps, n_time_steps + k_steps)
 ax.plot(ts, cis[1], '.-', color='red', lw=1)
 ax.fill_between(ts, cis[0], cis[2], color='red', alpha=0.25)
+
+# plot true probabilities
+ax.plot(probas_true[:, i, j], 'k.--', lw=0.5, label='Truth')
 
 ax.legend(fontsize=16)
 ax.set_xlabel('Time Step (t)', fontsize=16)
