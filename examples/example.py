@@ -1,40 +1,3 @@
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/joshloyal/multidynet/blob/master/LICENSE)
-
-## Generalized Bayes for Dynamic Random Dot Product Graphs 
-
-*Author: [Joshua D. Loyal](https://joshloyal.github.io/)*
-
-This package provides an interface for the model described in
-"Generalized Bayesian Inference for Dynamic Random Dot Product Graphs." Inference is performed using
-an efficient Gibbs sampler. For more details, see [Loyal (2024)](https://arxiv.org/abs/2401.09715).
-
-Dependencies
-------------
-``dynrdpg`` requires:
-
-- Python (>= 3.10)
-
-and the requirements highlighted in [requirements.txt](requirements.txt). To install the requirements, run
-
-```python
-pip install -r requirements.txt
-```
-
-Installation
-------------
-Use the following commands to get the copy from GitHub and install all the dependencies:
-
-```
->>> git clone https://github.com/joshloyal/dynrdpg.git
->>> cd dynrdpg
->>> pip install -r requirements.txt
->>> python setup.py install
-```
-
-Example
--------
-
-```python
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -59,7 +22,6 @@ rdpg = DynamicRDPG(n_features=2, rw_order=2, random_state=42)
 # XXX: In practice the number of burn-in and post burn in samples should be larger
 rdpg.sample(Y, n_burnin=250, n_samples=500)
 
-#>>> 100%|███████████████████████████████████████████████████████████████████████████| 750/750 [07:00<00:00,  1.78it/s]
 
 # compute the sampled in-sample edge probabilities 
 probas_pred = rdpg.predict()
@@ -98,13 +60,5 @@ ax.legend(fontsize=16)
 ax.set_xlabel('Time Step (t)', fontsize=16)
 ax.set_ylabel('Edge Probability\n [Nodes 2 and 3]', fontsize=16)
 
+fig.savefig('example.png', bbox_inches='tight', dpi=600)
 plt.show()
-```
-
-<img src="images/example.png" width="100%" />
-
-
-Simulation Studies and Real-Data Applications
----------------------------------------------
-
-The [scripts](scripts) directory includes the simulation studies and real-data application found in the article.

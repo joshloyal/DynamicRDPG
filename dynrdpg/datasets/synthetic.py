@@ -63,7 +63,7 @@ def simulate_network_rw(n_nodes=50, n_time_steps=20,
 
 
 def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3, gp_type='rbf', nu=2.5,
+                        length_scale=3, gp_type='matern', nu=2.5,
                         density=0.2, random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps).reshape(-1, 1)
@@ -151,7 +151,8 @@ def simulate_network_ncr(n_nodes=100, n_time_steps=100, n_features=2,
 
 
 def simulate_network_bspline(n_nodes=100, n_time_steps=100, n_features=2, 
-                         df=5, k_buffer=5, k_steps=5, density=0.2, random_state=42):
+                         df=5, k_buffer=10, k_steps=5, density=0.2, 
+                         return_ndarray=True, random_state=42):
 
     n_knots = df - 2
     
@@ -186,5 +187,8 @@ def simulate_network_bspline(n_nodes=100, n_time_steps=100, n_features=2,
 
         Y = sp.csr_array(Y, dtype=float) 
         Ys.append(Y)
+    
+    if return_ndarray:
+        Ys = np.stack([Y.toarray() for Y in Ys])
 
     return Ys, X, np.stack(probas)
