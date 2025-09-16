@@ -60,7 +60,7 @@ rdpg = DynamicRDPG(n_features=2, rw_order=2, random_state=42)
 
 # run the MCMC algorithm for 250 burn-in iterations and collect 500 post burn-in samples
 # XXX: In practice the number of burn-in and post burn in samples should be larger
-rdpg.sample(Y, n_burnin=250, n_samples=500)
+rdpg.sample(Y[:-k_step], n_burnin=250, n_samples=500)
 
 #>>> 100%|███████████████████████████████████████████████████████████████████████████| 750/750 [07:00<00:00,  1.78it/s]
 
@@ -79,7 +79,7 @@ probas_forecast.shape
 # plot the in-sample and forecast edge probability between node 2 and node 3
 # with 95% point-wise credible bands
 i, j = 1, 2
-n_time_steps, n_nodes, _ = Y.shape
+n_time_steps, n_nodes, _ = Y[:-k_step].shape
 
 fig, ax = plt.subplots(figsize=(10, 6))
 
