@@ -94,7 +94,7 @@ ax.fill_between(np.arange(n_time_steps), cis[0], cis[2], color='steelblue', alph
 # plot forecasts with 95% pointwise credible intervals
 cis = np.quantile(probas_forecast[:, :, i, j], q=[0.025, 0.5, 0.975], axis=0)
 ts = np.arange(n_time_steps, n_time_steps + k_steps)
-ax.plot(ts, cis[1], '.-', color='red', lw=1)
+ax.plot(ts, cis[1], '.-', color='red', lw=1, label='Forecast')
 ax.fill_between(ts, cis[0], cis[2], color='red', alpha=0.25)
 
 ax.legend(fontsize=16)
