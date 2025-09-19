@@ -37,9 +37,9 @@ DISTNAME = 'Dynamic RDPG'
 DESCRIPTION = 'Dynamic RDPG'
 with open('README.md') as f:
     LONG_DESCRIPTION = f.read()
-MAINTAINER = 'Joshua D. Loyal'
-MAINTAINER_EMAIL = 'jloyal25@gmail.com'
-URL = 'https://joshloyal.github.io/dynrdpg'
+MAINTAINER = ''
+MAINTAINER_EMAIL = ''
+URL = ''
 DOWNLOAD_URL = 'https://pypi.org/project/dynrdpg/#files'
 LICENSE = 'MIT'
 VERSION = __version__

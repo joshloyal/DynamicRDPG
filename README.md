@@ -1,8 +1,4 @@
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/joshloyal/multidynet/blob/master/LICENSE)
-
 ## Generalized Bayes for Dynamic Random Dot Product Graphs 
-
-*Author: [Joshua D. Loyal](https://joshloyal.github.io/)*
 
 This package provides an interface for the model described in
 "Generalized Bayesian Inference for Dynamic Random Dot Product Graphs." Inference is performed using
@@ -25,7 +21,6 @@ Installation
 Use the following commands to get the copy from GitHub and install all the dependencies:
 
 ```
->>> git clone https://github.com/joshloyal/dynrdpg.git
 >>> cd dynrdpg
 >>> pip install -r requirements.txt
 >>> python setup.py install
