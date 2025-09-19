@@ -12,4 +12,3 @@ scipy>=1.7.3
 seaborn==0.12.2
 tqdm>=4.66.3
 numpyro==0.13.2
-statsmodels==0.14.2
