@@ -182,7 +182,6 @@ class DynamicRDPG(object):
                 
                 # calculate P and its (upper) cholesky decomposition
                 precision = sp.dia_array((1. / sigma[i]) * K)
-                precision.data[diag_loc] += 0.5 * scale
                 if self.prior_std is not None:
                     precision += K_init
 
@@ -234,9 +233,8 @@ class DynamicRDPG(object):
                 x = X.transpose((2, 0, 1))  # (n_time_steps, n_nodes, n_features)
                 XXt = np.einsum(
                         'tid,tjd->tij', x, x)[..., subdiag[0], subdiag[1]]
-                a = 1e-3 + 0.25 * n_nodes * (n_nodes + 1) * n_time_points 
+                a = 1e-3 + 0.25 * n_nodes * (n_nodes - 1) * n_time_points 
                 b = 1e-3 + 0.5 * np.sum((self.y_vec_ - XXt) ** 2) 
-                b += 0.25 * np.sum(x ** 2) 
                 scale = stats.gamma.rvs(a, scale = 1. / b)
             
             if idx >= n_burnin:
@@ -298,13 +296,18 @@ class DynamicRDPG(object):
     
     def waic(self):
         X = self.samples_['X']
+
+        scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
         subdiag = np.tril_indices(X.shape[2], k=-1)
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
-        loglik = -0.5 * (self.y_vec_ - XXt) ** 2
         
+        # gaussian pseudo-likelihood
+        loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
+                    0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
+         
         lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
         p_waic = loglik.var(axis=0).sum()
-
+        
         return -2 * (lppd - p_waic)
     
     def forecast_positions(self, k_steps=1, n_samples=None):
