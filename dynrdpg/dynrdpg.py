@@ -284,11 +284,20 @@ class DynamicRDPG(object):
 
     def dic(self):
         X = self.samples_['X']
+        _, n_time_steps, n_nodes, _ = X.shape
+        
+        scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
         subdiag = np.tril_indices(X.shape[2], k=-1)
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
+        
+        #loglik_mean = np.mean(-0.5 * np.sum(scale * (self.y_vec_ - XXt) ** 2 + 0.5 * np.log(scale), axis=(1,2)))
+        loglik_mean = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1 / np.sqrt(scale)).sum(axis=(1, 2)).mean()
 
-        loglik_mean = np.mean(-0.5 * np.sum((self.y_vec_ - XXt) ** 2, axis=(1,2)))
-        loglik_hat = -0.5 * np.sum((self.y_vec_ - self.probas_) ** 2)
+        
+        scale_hat = self.samples_['scale'].mean()
+        #loglik_hat = -0.5 * np.sum(scale_hat * (self.y_vec_ - self.probas_) ** 2)
+        #loglik_hat += 0.25 * n_time_steps * n_nodes * (n_nodes - 1) * np.log(scale_hat)
+        loglik_hat = stats.norm.logpdf(self.y_vec_, loc=self.probas_, scale=1 / np.sqrt(scale)).sum()
 
         p_dic = 2 * (loglik_hat - loglik_mean)
 
@@ -302,8 +311,11 @@ class DynamicRDPG(object):
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
         
         # gaussian pseudo-likelihood
-        loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
-                    0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
+        #loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
+        #            0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
+        #loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
+        #            0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
+        loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1 / np.sqrt(scale))
          
         lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
         p_waic = loglik.var(axis=0).sum()
