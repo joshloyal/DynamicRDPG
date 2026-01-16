@@ -105,6 +105,93 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
     return Ys, X, np.stack(probas)
 
+
+def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2, 
+                        length_scale=3, gp_type='matern', nu=2.5,
+                        density=0.2, random_state=42):
+    rng = check_random_state(random_state)
+    ts = np.arange(n_time_steps).reshape(-1, 1)
+    dist_sq = euclidean_distances(ts, squared=True)
+    
+    if gp_type == 'rbf':
+        cov = 5 * RBF(length_scale=n_time_steps/length_scale)(ts)
+    else:
+        cov = 5 * Matern(length_scale=n_time_steps/length_scale, nu=nu)(ts)
+    
+    #ls = (length_scale/n_time_steps) ** 2 
+    #C = 5 * np.exp(-0.5 * dist_sq * ls )
+
+    X = rng.multivariate_normal(np.zeros_like(ts.ravel()), cov=cov,
+                                size=(n_nodes, n_features)).transpose((2, 0, 1))
+    X = expit(X) / np.sqrt(n_features)
+
+    means = []
+    subdiag = np.tril_indices(n_nodes, k=-1)
+    for t in range(n_time_steps):
+        means.append((X[t] @ X[t].T)[subdiag])
+    
+    scale = density / np.mean(means)
+
+    Ys = []
+    probas = []
+    for t in range(n_time_steps):
+        Y = np.zeros((n_nodes, n_nodes))
+
+        X[t] *= np.sqrt(scale)
+        y = rng.binomial(1, np.clip(scale * means[t], 0, 1))
+        probas.append(np.clip(X[t] @ X[t].T, 0, 1))
+
+        Y[subdiag] = y
+        Y += Y.T
+
+        Y = sp.csr_array(Y, dtype=float) 
+        Ys.append(Y)
+
+    return Ys, X, np.stack(probas)
+
+
+def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2, 
+                        length_scale=3, gp_type='matern', nu=2.5,
+                        family='poisson', snr=1., random_state=42):
+    rng = check_random_state(random_state)
+    ts = np.arange(n_time_steps).reshape(-1, 1)
+    dist_sq = euclidean_distances(ts, squared=True)
+    
+    if gp_type == 'rbf':
+        cov = 5 * RBF(length_scale=n_time_steps/length_scale)(ts)
+    else:
+        cov = np.sqrt(snr) * Matern(length_scale=n_time_steps/length_scale, nu=nu)(ts)
+    
+    X = rng.multivariate_normal(np.zeros_like(ts.ravel()), cov=cov,
+                                size=(n_nodes, n_features)).transpose((2, 0, 1))
+
+    means = []
+    subdiag = np.tril_indices(n_nodes, k=-1)
+    for t in range(n_time_steps):
+        means.append((X[t] @ X[t].T)[subdiag])
+    
+    Ys = []
+    sigma  = np.sqrt(n_features)
+    for t in range(n_time_steps):
+        Y = np.zeros((n_nodes, n_nodes))
+        
+        if family == 'poisson':
+            errors = rng.poisson(sigma, size=means[t].shape[0]) - sigma 
+        elif family == 'laplace':
+            errors = rng.laplace(loc=0, scale=sigma / np.sqrt(2), size=means[t].shape[0])  
+        else:
+            errors = sigma * rng.randn(means[t].shape[0])
+
+        y = means[t] + errors
+        Y[subdiag] = y
+        Y += Y.T
+
+        Ys.append(Y)
+
+    return np.asarray(Ys), X, np.stack(means)#, sigma
+
+
+
 def simulate_network_ncr(n_nodes=100, n_time_steps=100, n_features=2, 
                          df=5, k_steps=5, density=0.2, random_state=42):
     rng = check_random_state(random_state)

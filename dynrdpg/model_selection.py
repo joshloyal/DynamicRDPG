@@ -7,7 +7,7 @@ from .dynrdpg import DynamicRDPG
 
 
 def waic_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500):
-    model = DynamicRDPG(n_features=n_features, rw_order=rw_order, random_state=42)
+    model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y, n_burnin=n_burnin, n_samples=n_samples)
     return model, n_features, model.waic()
 
