@@ -151,14 +151,14 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
 
 def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3, gp_type='matern', nu=2.5,
+                        length_scale=3, gp_type='matern', nu=2.5, #nonzero_proba=0.8,
                         family='poisson', snr=1., random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps).reshape(-1, 1)
     dist_sq = euclidean_distances(ts, squared=True)
     
     if gp_type == 'rbf':
-        cov = 5 * RBF(length_scale=n_time_steps/length_scale)(ts)
+        cov = np.sqrt(snr) * RBF(length_scale=n_time_steps/length_scale)(ts)
     else:
         cov = np.sqrt(snr) * Matern(length_scale=n_time_steps/length_scale, nu=nu)(ts)
     
@@ -181,7 +181,9 @@ def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2,
             errors = rng.laplace(loc=0, scale=sigma / np.sqrt(2), size=means[t].shape[0])  
         else:
             errors = sigma * rng.randn(means[t].shape[0])
-
+        
+        #nonzero_mask = rng.binomial(1, p=nonzero_proba, size=means[t].shape[0])
+        #y = nozero_mask * (means[t] + errors)
         y = means[t] + errors
         Y[subdiag] = y
         Y += Y.T

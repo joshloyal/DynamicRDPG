@@ -12,8 +12,20 @@ from numpyro.diagnostics import effective_sample_size, split_gelman_rubin
 from sklearn.utils import check_random_state
 from sklearn.metrics import roc_auc_score, average_precision_score
 from scipy.linalg import block_diag, orthogonal_procrustes
-from scipy.special import expit, logsumexp
+from scipy.special import expit, logsumexp, xlogy, xlog1py
 from scipy import stats 
+
+
+def clamp_probs(probs):
+    finfo = np.finfo(np.result_type(probs, float))
+    return np.clip(probs, finfo.tiny, 1.0 - finfo.eps)
+    #return np.clip(probs, finfo.eps, 1.0 - finfo.eps)
+
+
+def bernoulli_logp(y, probs):
+    ps_clamped = clamp_probs(probs)
+    y = np.array(y, np.result_type(float))
+    return xlogy(y, ps_clamped) + xlog1py(1 - y, -ps_clamped)
 
 
 def ase(A, k=2):
@@ -303,25 +315,40 @@ class DynamicRDPG(object):
 
         return -2 * loglik_hat + 2 * p_dic
     
-    def waic(self):
+    def waic(self, is_binary=False):
         X = self.samples_['X']
 
-        scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
         subdiag = np.tril_indices(X.shape[2], k=-1)
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
-        
-        # gaussian pseudo-likelihood
-        #loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
-        #            0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
-        #loglik = (-0.5 * scale * (self.y_vec_ - XXt) ** 2 + 
-        #            0.5 * np.log(scale) - 0.5 * np.log(2 * np.pi))
-        loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1 / np.sqrt(scale))
+         
+        if is_binary:
+            # bernoulli log-likelihood
+            loglik = bernoulli_logp(self.y_vec_, XXt)
+        else:
+            # gaussian pseudo-likelihood
+            scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
+            loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1 / np.sqrt(scale))
          
         lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
         p_waic = loglik.var(axis=0).sum()
         
         return -2 * (lppd - p_waic)
     
+    def jic(self, is_binary=False):
+        X = self.samples_['X'].mean(axis=0)
+        n_nodes = X.shape[1]
+
+        subdiag = np.tril_indices(X.shape[1], k=-1)
+        XXt = np.einsum('tid,tjd->tij', X, X)[..., subdiag[0], subdiag[1]]
+         
+        if is_binary:
+            loglik = bernoulli_logp(self.y_vec_, XXt)
+        else:
+            scale = 1 / np.sqrt(self.samples_['scale'].mean(axis=0))
+            loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=scale)
+        
+        return -2 * loglik.sum() + self.n_features * n_nodes * np.log(n_nodes)
+        
     def forecast_positions(self, k_steps=1, n_samples=None):
         rng = check_random_state(self.random_state)
         n_mcmc_samples, n_time_steps, n_nodes, n_features = self.samples_['X'].shape
