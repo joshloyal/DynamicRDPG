@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import numpyro.distributions as dist
 import scipy.sparse as sp
 import scipy.linalg as linalg
+import arviz as az
 
 from tqdm import tqdm
 from jax import random, vmap
@@ -266,6 +267,10 @@ class DynamicRDPG(object):
         
         self.X_ = self.samples_['X'].mean(axis=0)
         self.sigma_ = self.samples_['sigma'].mean(axis=0)
+        if self.sample_scale:
+            self.scale_ = self.samples_['scale'].mean()
+        else:
+            self.scale_ = self.scale
         
         if self.is_binary:
             self.probas_ = np.zeros((n_time_points, n_dyads))
@@ -315,24 +320,39 @@ class DynamicRDPG(object):
 
         return -2 * loglik_hat + 2 * p_dic
     
-    def waic(self, is_binary=False):
+    def loglikelihood(self):
         X = self.samples_['X']
 
         subdiag = np.tril_indices(X.shape[2], k=-1)
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
-         
-        if is_binary:
-            # bernoulli log-likelihood
-            loglik = bernoulli_logp(self.y_vec_, XXt)
-        else:
-            # gaussian pseudo-likelihood
-            scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
-            loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1 / np.sqrt(scale))
-         
-        lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
-        p_waic = loglik.var(axis=0).sum()
-        
-        return -2 * (lppd - p_waic)
+        scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
+        return stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1. / np.sqrt(scale))
+
+    def waic(self, is_binary=False):
+        #X = self.samples_['X']
+
+        #subdiag = np.tril_indices(X.shape[2], k=-1)
+        #XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
+        # 
+        #if is_binary:
+        #    # bernoulli log-likelihood
+        #    loglik = bernoulli_logp(self.y_vec_, XXt)
+        #else:
+        #    # gaussian pseudo-likelihood
+        #    scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
+        #    loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1. / np.sqrt(scale))
+        # 
+        #lppd = (logsumexp(loglik, axis=0) - np.log(X.shape[0])).sum()
+        #p_waic = loglik.var(axis=0).sum()
+        #
+        #return -2 * (lppd - p_waic)
+
+        loglik = self.loglikelihood()
+        loglik = loglik.reshape(loglik.shape[0], -1)[np.newaxis]
+        iloglik = az.convert_to_inference_data(loglik, group='log_likelihood')
+        res = az.waic(iloglik, scale='deviance')
+
+        return res.elpd_waic, res.se, res.p_waic
     
     def jic(self, is_binary=False):
         X = self.samples_['X'].mean(axis=0)
@@ -346,9 +366,15 @@ class DynamicRDPG(object):
         else:
             scale = 1 / np.sqrt(self.samples_['scale'].mean(axis=0))
             loglik = stats.norm.logpdf(self.y_vec_, loc=XXt, scale=scale)
-        
+       
         return -2 * loglik.sum() + self.n_features * n_nodes * np.log(n_nodes)
-        
+    
+    def gcv(self): 
+        n_nodes = self.X_.shape[1]
+        gcv = self.scale_ * np.mean((self.y_vec_ - self.probas_) ** 2)
+        return np.log(gcv) - 2 * np.log(1. - (self.n_features / (n_nodes - 1)))
+
+
     def forecast_positions(self, k_steps=1, n_samples=None):
         rng = check_random_state(self.random_state)
         n_mcmc_samples, n_time_steps, n_nodes, n_features = self.samples_['X'].shape

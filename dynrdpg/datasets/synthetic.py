@@ -123,6 +123,22 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
     X = rng.multivariate_normal(np.zeros_like(ts.ravel()), cov=cov,
                                 size=(n_nodes, n_features)).transpose((2, 0, 1))
+    # add some clustering?
+    z = rng.choice([0, 1, 2, 3], size=n_nodes)
+    #mu = np.array([[-2, 1.5, -2, 1.5], 
+    #               [2, -1.5, 2, -1.5]])
+    #mu = np.array([[-3, 2, 0, 0], 
+    #               [3, -2, 0, 0],
+    #               [0, 0, -3, 2],
+    #               [0, 0, 3, -2]])
+    
+    #c = np.ones(n_features) #/ np.sqrt(n_features)
+    #mu = np.vstack((c, -c))
+    #c = np.ones(n_features)
+    #mu = 2 * np.vstack((np.diag(c), np.diag(-c)))
+    #z = rng.choice(np.arange(2 * n_features), size=n_nodes)
+
+    #X = mu[z] + 0.3 * X
     X = expit(X) / np.sqrt(n_features)
 
     means = []
@@ -139,7 +155,7 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
         X[t] *= np.sqrt(scale)
         y = rng.binomial(1, np.clip(scale * means[t], 0, 1))
-        probas.append(np.clip(X[t] @ X[t].T, 0, 1))
+        probas.append(np.clip(X[t] @ X[t].T, 0, 1)[subdiag])
 
         Y[subdiag] = y
         Y += Y.T
@@ -147,7 +163,7 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
         Y = sp.csr_array(Y, dtype=float) 
         Ys.append(Y)
 
-    return Ys, X, np.stack(probas)
+    return Ys, X, np.stack(probas), z
 
 
 def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2, 

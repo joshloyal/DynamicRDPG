@@ -30,10 +30,12 @@ def waic_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=
     model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y, n_burnin=n_burnin, n_samples=n_samples)
 
-    if is_binary:
-        return model, n_features, model.waic(is_binary=True), model.waic()
-    else:
-        return model, n_features, model.waic()
+    #if is_binary:
+    #    return model, n_features, model.waic(is_binary=True), model.waic(), model.gcv()
+    #else:
+    #    return model, n_features, model.waic(), model.gcv()
+    waic, se, p_waic = model.waic()
+    return model, n_features, waic, se, p_waic
 
 
 def waic_selection(Y, rw_order=2, is_binary=True, min_features=1, max_features=10,
@@ -46,10 +48,11 @@ def waic_selection(Y, rw_order=2, is_binary=True, min_features=1, max_features=1
     models = [r[0] for r in res] 
     criteria = [r[1:] for r in res]
 
-    if is_binary:
-        colnames = ['n_features', 'bernoulli waic', 'gaussian waic']
-    else:
-        colnames = ['n_features', 'waic']
+    #if is_binary:
+    #    colnames = ['n_features', 'bernoulli waic', 'gaussian waic', 'gcv']
+    #else:
+    #    colnames = ['n_features', 'waic', 'gcv']
+    colnames = ['n_features', 'waic', 'se', 'p_waic']
 
     return models, pd.DataFrame(np.asarray(criteria), columns=colnames)
 
