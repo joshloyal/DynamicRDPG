@@ -314,12 +314,16 @@ class DynamicRDPG(object):
         scale_hat = self.samples_['scale'].mean()
         #loglik_hat = -0.5 * np.sum(scale_hat * (self.y_vec_ - self.probas_) ** 2)
         #loglik_hat += 0.25 * n_time_steps * n_nodes * (n_nodes - 1) * np.log(scale_hat)
-        loglik_hat = stats.norm.logpdf(self.y_vec_, loc=self.probas_, scale=1 / np.sqrt(scale)).sum()
+        loglik_hat = stats.norm.logpdf(self.y_vec_, loc=self.probas_, scale=1 / np.sqrt(scale_hat)).sum()
 
         p_dic = 2 * (loglik_hat - loglik_mean)
 
         return -2 * loglik_hat + 2 * p_dic
     
+    def subsample_weights(self):
+        scale_hat = self.samples_['scale'].mean()
+        return stats.norm.logpdf(self.y_vec_, loc=self.probas_, scale=1 / np.sqrt(scale_hat)).ravel()
+
     def loglikelihood(self):
         X = self.samples_['X']
 

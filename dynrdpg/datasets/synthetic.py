@@ -6,8 +6,10 @@ from sklearn.gaussian_process.kernels import RBF, Matern
 from sklearn.utils import check_random_state
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import SplineTransformer
-from scipy.special import expit
+from scipy.special import expit, logit
 
+from numpyro.distributions import Dirichlet
+from jax.random import PRNGKey
 
 
 def uniform_simplex(n_nodes, n_features, random_state=None):
@@ -106,8 +108,8 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
     return Ys, X, np.stack(probas)
 
 
-def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3, gp_type='matern', nu=2.5,
+def simulate_network_gp_mixture(n_nodes=100, n_time_steps=100, n_features=2, 
+                        length_scale=3, gp_type='matern', nu=2.5, 
                         density=0.2, random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps).reshape(-1, 1)
@@ -118,28 +120,23 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
     else:
         cov = 5 * Matern(length_scale=n_time_steps/length_scale, nu=nu)(ts)
     
-    #ls = (length_scale/n_time_steps) ** 2 
-    #C = 5 * np.exp(-0.5 * dist_sq * ls )
-
     X = rng.multivariate_normal(np.zeros_like(ts.ravel()), cov=cov,
                                 size=(n_nodes, n_features)).transpose((2, 0, 1))
-    # add some clustering?
-    z = rng.choice([0, 1, 2, 3], size=n_nodes)
-    #mu = np.array([[-2, 1.5, -2, 1.5], 
-    #               [2, -1.5, 2, -1.5]])
-    #mu = np.array([[-3, 2, 0, 0], 
-    #               [3, -2, 0, 0],
-    #               [0, 0, -3, 2],
-    #               [0, 0, 3, -2]])
-    
-    #c = np.ones(n_features) #/ np.sqrt(n_features)
-    #mu = np.vstack((c, -c))
-    #c = np.ones(n_features)
-    #mu = 2 * np.vstack((np.diag(c), np.diag(-c)))
-    #z = rng.choice(np.arange(2 * n_features), size=n_nodes)
-
-    #X = mu[z] + 0.3 * X
-    X = expit(X) / np.sqrt(n_features)
+    if n_features == 2:
+        z = rng.choice([0, 1, 2], size=n_nodes)
+        alpha = np.array([[1, 1, 10],
+                          [1, 10, 1],
+                          [10, 1, 1]])
+        X0 = logit(Dirichlet(alpha[z]).sample(PRNGKey(random_state))[:, :2]) 
+    else:
+        z = rng.choice([0, 1, 2, 3, 4], size=n_nodes)
+        alpha = np.array([[1, 1, 1, 1,10],
+                          [1, 1, 1, 10, 1],
+                          [1, 1, 10, 1, 1],
+                          [1, 10, 1, 1, 1],
+                          [10, 1, 1, 1, 1]])
+        X0 = logit(Dirichlet(alpha[z]).sample(PRNGKey(random_state))[:, :4]) 
+    X = expit(X0 + X) / np.sqrt(n_features)
 
     means = []
     subdiag = np.tril_indices(n_nodes, k=-1)
@@ -168,7 +165,7 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
 def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2, 
                         length_scale=3, gp_type='matern', nu=2.5, #nonzero_proba=0.8,
-                        family='poisson', snr=1., random_state=42):
+                        family='poisson', snr=1., sigma=None, random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps).reshape(-1, 1)
     dist_sq = euclidean_distances(ts, squared=True)
@@ -187,7 +184,7 @@ def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2,
         means.append((X[t] @ X[t].T)[subdiag])
     
     Ys = []
-    sigma  = np.sqrt(n_features)
+    sigma  = np.sqrt(n_features) if sigma is None else sigma
     for t in range(n_time_steps):
         Y = np.zeros((n_nodes, n_nodes))
         
