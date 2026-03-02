@@ -206,6 +206,63 @@ def simulate_network_gp_continuous(n_nodes=100, n_time_steps=100, n_features=2,
     return np.asarray(Ys), X, np.stack(means)#, sigma
 
 
+def simulate_network_gp_continuous_rw(n_nodes=100, n_time_steps=100, n_features=2, 
+                        rw_order=1, rho=0.95, family='poisson', snr=1., random_state=42):
+    rng = check_random_state(random_state) 
+    X = np.zeros((n_time_steps, n_nodes, n_features)) 
+
+    if rw_order == 1:
+        X[0] = (snr ** 0.25) * rng.randn(n_nodes, n_features) 
+        rw_sigma_sq = np.sqrt(snr) * (1. - rho ** 2)
+        for t in range(1, n_time_steps):
+            X[t] = rho * X[t-1] +  np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+    else:
+        #rho = 0.15 if rho >= 0.2 else rho
+        phi_x = 0.8
+        phi_v = 0.9
+        rw_sigma_sq = np.sqrt(snr) * (1. - phi_x ** 2) * (1. - phi_v ** 2)
+        #rw_sigma_sq = np.sqrt(snr) * (1. - phi_x ** 2) * (1./((1./(1. - phi_v ** 2)) + phi_x * (phi_v**2)))
+        #term1 = 1 - phi_x ** 4
+        #term2 = 1. / (1 + (((phi_x  + phi_v ) ** 2)/(1 - phi_v ** 2)))
+        #rw_sigma_sq = np.sqrt(snr) * term1 * term2
+        #v = np.zeros((n_nodes, n_features))#np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+        #X[0] = np.zeros((n_nodes, n_features))#np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+        v = (snr ** 0.25) * rng.randn(n_nodes, n_features) 
+        X[0] = (snr ** 0.25) * rng.randn(n_nodes, n_features) 
+        for t in range(1, n_time_steps):
+            #X[t] = 2 * rho1 * X[t-1] - rho2 * X[t-2] + np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+            #X[t] = rho * (2 * X[t-1] - X[t-2]) + np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+            X[t] = phi_x * X[t-1] + v
+            v = phi_v * v + np.sqrt(rw_sigma_sq) * rng.randn(n_nodes, n_features)
+
+    means = []
+    subdiag = np.tril_indices(n_nodes, k=-1)
+    for t in range(n_time_steps):
+        means.append((X[t] @ X[t].T)[subdiag])
+    
+    Ys = []
+    sigma  = np.sqrt(n_features) 
+    for t in range(n_time_steps):
+        Y = np.zeros((n_nodes, n_nodes))
+        
+        if family == 'poisson':
+            errors = rng.poisson(sigma, size=means[t].shape[0]) - sigma 
+        elif family == 'laplace':
+            errors = rng.laplace(loc=0, scale=sigma / np.sqrt(2), size=means[t].shape[0])  
+        else:
+            errors = sigma * rng.randn(means[t].shape[0])
+        
+        #nonzero_mask = rng.binomial(1, p=nonzero_proba, size=means[t].shape[0])
+        #y = nozero_mask * (means[t] + errors)
+        y = means[t] + errors
+        Y[subdiag] = y
+        Y += Y.T
+
+        Ys.append(Y)
+
+    return np.asarray(Ys), X, np.stack(means)
+
+
 
 def simulate_network_ncr(n_nodes=100, n_time_steps=100, n_features=2, 
                          df=5, k_steps=5, density=0.2, random_state=42):
