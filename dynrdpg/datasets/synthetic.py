@@ -127,9 +127,12 @@ def simulate_network_gp_density(n_nodes=100, n_time_steps=100, n_features=2,
     if dens_type == 'increasing':
         def density(t):
             return (density_max - density_min) * np.sin(np.pi * t / n_time_steps) + density_min 
-    else:
+    elif dens_type == 'decreasing':
         def density(t):
             return -(density_max - density_min) * np.sin(np.pi * t / n_time_steps) + density_max
+    else:
+        def density(t):
+            return (density_max - density_min) * expit((t - n_time_steps/2.) / 3.) + density_min
 
     means = []
     subdiag = np.tril_indices(n_nodes, k=-1)
