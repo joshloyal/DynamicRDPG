@@ -109,7 +109,7 @@ def simulate_network_gp(n_nodes=100, n_time_steps=100, n_features=2,
 
 
 def simulate_network_gp_density(n_nodes=100, n_time_steps=100, n_features=2, 
-                        length_scale=3, gp_type='matern', nu=2.5,
+                        length_scale=3, gp_type='matern', nu=2.5, dens_type='increasing',
                         density_min=0.1, density_max=0.5, random_state=42):
     rng = check_random_state(random_state)
     ts = np.arange(n_time_steps).reshape(-1, 1)
@@ -124,8 +124,12 @@ def simulate_network_gp_density(n_nodes=100, n_time_steps=100, n_features=2,
                                 size=(n_nodes, n_features)).transpose((2, 0, 1))
     X = expit(X) / np.sqrt(n_features)
     
-    def density(t):
-        return (density_max - density_min) * np.sin(np.pi * t / n_time_steps) + density_min 
+    if dens_type == 'increasing':
+        def density(t):
+            return (density_max - density_min) * np.sin(np.pi * t / n_time_steps) + density_min 
+    else:
+        def density(t):
+            return -(density_max - density_min) * np.sin(np.pi * t / n_time_steps) + density_max
 
     means = []
     subdiag = np.tril_indices(n_nodes, k=-1)
