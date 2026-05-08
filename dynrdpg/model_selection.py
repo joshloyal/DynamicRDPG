@@ -5,6 +5,8 @@ from graspologic.embed import AdjacencySpectralEmbed as ASE
 from joblib import Parallel, delayed
 from scipy.special import binom, expit, xlogy, xlog1py
 from scipy import stats
+from scipy import sparse as sp
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 from .dynrdpg import DynamicRDPG, dynamic_adjacency_to_vec
 
@@ -26,14 +28,15 @@ def ase(A, k=2):
     return eigvec[:, ::-1] * np.sqrt(np.abs(eigvals)[::-1])
 
 
+def low_rank_completion(A, k):
+    u, s, vt = sp.linalg.svds(sp.csr_array(A), k=k)
+    A_tilde = (u * s) @ vt 
+    A_tilde[np.diag_indices_from(A_tilde)] = 0
+    return A_tilde
+
 def waic_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500):
     model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y, n_burnin=n_burnin, n_samples=n_samples)
-
-    #if is_binary:
-    #    return model, n_features, model.waic(is_binary=True), model.waic(), model.gcv()
-    #else:
-    #    return model, n_features, model.waic(), model.gcv()
     waic, se, p_waic = model.waic()
     return model, n_features, waic, se, p_waic
 
@@ -47,15 +50,70 @@ def waic_selection(Y, rw_order=2, is_binary=True, min_features=1, max_features=1
     
     models = [r[0] for r in res] 
     criteria = [r[1:] for r in res]
-
-    #if is_binary:
-    #    colnames = ['n_features', 'bernoulli waic', 'gaussian waic', 'gcv']
-    #else:
-    #    colnames = ['n_features', 'waic', 'gcv']
     colnames = ['n_features', 'waic', 'se', 'p_waic']
 
     return models, pd.DataFrame(np.asarray(criteria), columns=colnames)
 
+
+def edge_cv_single(Y_train, y_vec, test_indices, is_binary=True, rw_order=2, n_features=2, n_burnin=2500, n_samples=2500):
+    n_time_steps, n_nodes = len(Y_train), Y_train[0].shape[0]
+
+    # create low-rank completed training matrix
+    Y_tilde = np.zeros((n_time_steps, n_nodes, n_nodes))
+    for t in range(n_time_steps):
+        Y_tilde[t] = low_rank_completion(Y_train[t], k=n_features)
+    
+    model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=False, random_state=42)
+    model.sample(Y_tilde, n_burnin=n_burnin, n_samples=n_samples) 
+    
+    mse, auc, aupr = 0, 0, 0
+    y_true, y_pred = [], []
+    for t in range(n_time_steps):
+        y_true.append(y_vec[t][test_indices[t]])
+        if is_binary:
+            y_pred.append(np.clip(model.means_[t][test_indices[t]], 0, 1))
+        else:
+            y_pred.append(model.means_[t][test_indices[t]])
+    y_true, y_pred = np.concatenate(y_true), np.concatenate(y_pred)
+    mse = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    auc = 1. - roc_auc_score(y_true, y_pred)
+    aupr = 1. - average_precision_score(y_true, y_pred)
+
+    return model, n_features, np.sqrt(mse), auc, aupr
+
+
+def edge_cv_selection(Y, rw_order=2, is_binary=True, min_features=1, max_features=10,
+                      n_burnin=500, n_samples=500, p=0.9, seed=42, n_jobs=-1):
+    
+    n_time_steps, n_nodes = len(Y),  Y[0].shape[0]
+    subdiag = np.tril_indices_from(Y[0], k=-1)
+    n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
+    rng = np.random.default_rng(seed)
+
+    Y_vec = np.zeros((n_time_steps, n_dyads))
+    for t in range(n_time_steps):
+        Y_vec[t] = Y[t][subdiag]
+    
+    # create training adjacency matrix
+    test_indices = []
+    Y_train = np.zeros((n_time_steps, n_nodes, n_nodes))
+    for t in range(n_time_steps):
+        train_mask = rng.binomial(1, p=p, size=n_dyads)
+        Y_train[t][subdiag] = (1. / p) * (train_mask * Y_vec[t])
+        Y_train[t] += Y_train[t].T
+        test_indices.append(train_mask == 0)
+    
+    res = Parallel(n_jobs=n_jobs)(delayed(edge_cv_single)(
+        Y_train=Y_train, y_vec=Y_vec, test_indices=test_indices, is_binary=is_binary, 
+        rw_order=rw_order, n_features=d,
+        n_burnin=n_burnin, n_samples=n_samples) for
+            d in range(min_features, max_features + 1))
+    
+    models = [r[0] for r in res] 
+    criteria = [r[1:] for r in res]
+    colnames = ['n_features', 'rmse', 'auc', 'aupr']
+
+    return models, pd.DataFrame(np.asarray(criteria), columns=colnames)
 
 #def loo_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500,
 #                         subsample_frac=0.2):

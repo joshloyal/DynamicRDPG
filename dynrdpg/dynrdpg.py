@@ -43,7 +43,7 @@ def smooth_positions_procrustes(U):
     return U
 
 
-def dynamic_adjacency_to_vec(Y, sparse=False):
+def dynamic_adjacency_to_vec(Y, sparse=False, is_binary=True):
     if not sparse:
         n_time_points, n_nodes, _ = Y.shape
     else:
@@ -52,7 +52,12 @@ def dynamic_adjacency_to_vec(Y, sparse=False):
 
     n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
     subdiag = np.tril_indices(n_nodes, k=-1)
-    y = np.zeros((n_time_points, n_dyads), dtype=int)
+
+    if is_binary:
+        y = np.zeros((n_time_points, n_dyads), dtype=int)
+    else:
+        y = np.zeros((n_time_points, n_dyads))
+
     for t in range(n_time_points):
         y[t] = Y[t].todense()[subdiag] if sparse else Y[t][subdiag]
 
@@ -123,7 +128,7 @@ class DynamicRDPG(object):
             n_nodes = Y[0].shape[0]
 
         n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
-        self.y_vec_ = dynamic_adjacency_to_vec(Y, sparse=True)
+        self.y_vec_ = dynamic_adjacency_to_vec(Y, sparse=True, is_binary=self.is_binary)
         rng = check_random_state(self.random_state)
         subdiag = np.tril_indices(n_nodes, k=-1)
         
