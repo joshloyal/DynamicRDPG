@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 from scipy.special import binom, expit, xlogy, xlog1py
 from scipy import stats
 from scipy import sparse as sp
-from sklearn.metrics import roc_auc_score, average_precision_score
+from sklearn.metrics import roc_auc_score, average_precision_score, log_loss
 
 from .dynrdpg import DynamicRDPG, dynamic_adjacency_to_vec
 
@@ -75,15 +75,21 @@ def edge_cv_single(Y_train, y_vec, test_indices, is_binary=True, rw_order=2, n_f
         else:
             y_pred.append(model.means_[t][test_indices[t]])
     y_true, y_pred = np.concatenate(y_true), np.concatenate(y_pred)
+    
     mse = np.sqrt(np.mean((y_true - y_pred) ** 2))
     auc = 1. - roc_auc_score(y_true, y_pred)
     aupr = 1. - average_precision_score(y_true, y_pred)
 
-    return model, n_features, np.sqrt(mse), auc, aupr
+    # pseudo-loglikelihood 
+    #scale_hat = model.samples_['scale'].mean()
+    #loglik_hat = stats.norm.logpdf(y_true, loc=y_pred, scale=1. / np.sqrt(scale_hat)).sum()
+    loglik = log_loss(y_true, y_pred)
+
+    return n_features, np.sqrt(mse), loglik, auc, aupr
 
 
 def edge_cv_selection(Y, rw_order=2, is_binary=True, min_features=1, max_features=10,
-                      n_burnin=500, n_samples=500, p=0.9, seed=42, n_jobs=-1):
+                      n_burnin=500, n_samples=500, p=0.9, n_reps=3, seed=42, n_jobs=-1):
     
     n_time_steps, n_nodes = len(Y),  Y[0].shape[0]
     subdiag = np.tril_indices_from(Y[0], k=-1)
@@ -94,26 +100,27 @@ def edge_cv_selection(Y, rw_order=2, is_binary=True, min_features=1, max_feature
     for t in range(n_time_steps):
         Y_vec[t] = Y[t][subdiag]
     
-    # create training adjacency matrix
-    test_indices = []
-    Y_train = np.zeros((n_time_steps, n_nodes, n_nodes))
-    for t in range(n_time_steps):
-        train_mask = rng.binomial(1, p=p, size=n_dyads)
-        Y_train[t][subdiag] = (1. / p) * (train_mask * Y_vec[t])
-        Y_train[t] += Y_train[t].T
-        test_indices.append(train_mask == 0)
-    
-    res = Parallel(n_jobs=n_jobs)(delayed(edge_cv_single)(
-        Y_train=Y_train, y_vec=Y_vec, test_indices=test_indices, is_binary=is_binary, 
-        rw_order=rw_order, n_features=d,
-        n_burnin=n_burnin, n_samples=n_samples) for
-            d in range(min_features, max_features + 1))
-    
-    models = [r[0] for r in res] 
-    criteria = [r[1:] for r in res]
-    colnames = ['n_features', 'rmse', 'auc', 'aupr']
+    criteria = []
+    for k in range(n_reps):
+        # create training adjacency matrix
+        test_indices = []
+        Y_train = np.zeros((n_time_steps, n_nodes, n_nodes))
+        for t in range(n_time_steps):
+            train_mask = rng.binomial(1, p=p, size=n_dyads)
+            Y_train[t][subdiag] = (1. / p) * (train_mask * Y_vec[t])
+            Y_train[t] += Y_train[t].T
+            test_indices.append(train_mask == 0)
+        
+        criteria.append(Parallel(n_jobs=n_jobs)(delayed(edge_cv_single)(
+            Y_train=Y_train, y_vec=Y_vec, test_indices=test_indices, is_binary=is_binary, 
+            rw_order=rw_order, n_features=d,
+            n_burnin=n_burnin, n_samples=n_samples) for
+                d in range(min_features, max_features + 1)))
 
-    return models, pd.DataFrame(np.asarray(criteria), columns=colnames)
+    colnames = ['n_features', 'rmse', 'loglik', 'auc', 'aupr']    
+    criteria = pd.DataFrame(np.concatenate(criteria), columns=colnames)
+    group = criteria.groupby('n_features')
+    return group.mean(), group.std()
 
 #def loo_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500,
 #                         subsample_frac=0.2):
