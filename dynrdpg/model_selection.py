@@ -143,7 +143,7 @@ def backtest_selection_single(Y, n_heldout=5, is_binary=True, rw_order=2, n_feat
 def backtest_selection(Y, n_heldout=5, rw_order=2, is_binary=True, min_features=1, max_features=10,
                        n_burnin=500, n_samples=500, p=0.9, n_reps=3, seed=42, n_jobs=-1):
         
-    criteria = Parallel(n_jobs=n_jobs)(delayed(forecast_selection_single)(
+    criteria = Parallel(n_jobs=n_jobs)(delayed(backtest_selection_single)(
             Y=Y, n_heldout=n_heldout, is_binary=is_binary, rw_order=rw_order, n_features=d,
             n_burnin=n_burnin, n_samples=n_samples) for
                 d in range(min_features, max_features + 1))
