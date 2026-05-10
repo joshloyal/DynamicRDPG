@@ -37,7 +37,7 @@ def low_rank_completion(A, k):
 def waic_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500):
     model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y, n_burnin=n_burnin, n_samples=n_samples)
-    waic, se, p_waic = model.waic()
+    waic, se, p_waic = model.waic(is_binary=is_binary)
     return model, n_features, waic, se, p_waic
 
 
@@ -76,7 +76,7 @@ def edge_cv_single(Y_train, y_vec, test_indices, is_binary=True, rw_order=2, n_f
             y_pred.append(model.means_[t][test_indices[t]])
     y_true, y_pred = np.concatenate(y_true), np.concatenate(y_pred)
     
-    mse = np.sqrt(np.mean((y_true - y_pred) ** 2))
+    mse = np.mean((y_true - y_pred) ** 2)
     auc = 1. - roc_auc_score(y_true, y_pred)
     aupr = 1. - average_precision_score(y_true, y_pred)
 
@@ -128,28 +128,32 @@ def backtest_selection_single(Y, n_heldout=5, is_binary=True, rw_order=2, n_feat
     model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y[:-n_heldout], n_burnin=n_burnin, n_samples=n_samples) 
     
-    mse, auc, aupr = 0, 0, 0
-    y_true = dynamic_adjacency_to_vec(Y[-n_heldout:], sparse=True, is_binary=is_binary).ravel()
+    sparse = False if isinstance(Y, np.ndarray) else True
+    y_true = dynamic_adjacency_to_vec(Y[-n_heldout:], sparse=sparse, is_binary=is_binary).ravel()
     y_pred = model.forecast(k_steps=n_heldout, n_samples=1000, return_subdiag=True).mean(axis=0).ravel()
     
-    mse = np.sqrt(np.mean((y_true - y_pred) ** 2))
-    auc = 1. - roc_auc_score(y_true, y_pred)
-    aupr = 1. - average_precision_score(y_true, y_pred)
-    loglik = log_loss(y_true, y_pred)
+    data = {'n_features': n_features}
+    data['mse'] = np.mean((y_true - y_pred) ** 2)
+    if is_binary:
+        data['auc'] = 1. - roc_auc_score(y_true, y_pred)
+        data['aupr'] = 1. - average_precision_score(y_true, y_pred)
+        data['logloss'] = log_loss(y_true, y_pred)
 
-    return n_features, mse, loglik, auc, aupr
+    return model, data
 
 
 def backtest_selection(Y, n_heldout=5, rw_order=2, is_binary=True, min_features=1, max_features=10,
                        n_burnin=500, n_samples=500, p=0.9, n_reps=3, seed=42, n_jobs=-1):
         
-    criteria = Parallel(n_jobs=n_jobs)(delayed(backtest_selection_single)(
+    res = Parallel(n_jobs=n_jobs)(delayed(backtest_selection_single)(
             Y=Y, n_heldout=n_heldout, is_binary=is_binary, rw_order=rw_order, n_features=d,
             n_burnin=n_burnin, n_samples=n_samples) for
                 d in range(min_features, max_features + 1))
 
-    colnames = ['n_features', 'mse', 'loglik', 'auc', 'aupr']    
-    return pd.DataFrame(criteria, columns=colnames)
+    #colnames = ['n_features', 'mse', 'loglik', 'auc', 'aupr']    
+    models = [r[0] for r in res] 
+    criteria = [r[1] for r in res]
+    return models, pd.DataFrame(criteria)
 
 
 #def loo_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500,
