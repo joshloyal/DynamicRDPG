@@ -335,13 +335,10 @@ class DynamicRDPG(object):
         subdiag = np.tril_indices(X.shape[2], k=-1)
         XXt = np.einsum('stid,stjd->stij', X, X)[..., subdiag[0], subdiag[1]]
 
-        if is_binary:
-            return bernoulli_logp(self.y_vec_, XXt)
-        else:
-            scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
-            return stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1. / np.sqrt(scale))
+        scale = self.samples_['scale'][:, np.newaxis, np.newaxis]
+        return stats.norm.logpdf(self.y_vec_, loc=XXt, scale=1. / np.sqrt(scale))
 
-    def waic(self, is_binary=False):
+    def waic(self):
         #X = self.samples_['X']
 
         #subdiag = np.tril_indices(X.shape[2], k=-1)
@@ -360,7 +357,7 @@ class DynamicRDPG(object):
         #
         #return -2 * (lppd - p_waic)
 
-        loglik = self.loglikelihood(is_binary=is_binary)
+        loglik = self.loglikelihood()
         loglik = loglik.reshape(loglik.shape[0], -1)[np.newaxis]
         iloglik = az.convert_to_inference_data(loglik, group='log_likelihood')
         res = az.waic(iloglik, scale='deviance')

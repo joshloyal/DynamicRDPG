@@ -37,7 +37,7 @@ def low_rank_completion(A, k):
 def waic_selection_single(Y, rw_order=2, is_binary=True, n_features=2, n_burnin=2500, n_samples=2500):
     model = DynamicRDPG(n_features=n_features, rw_order=rw_order, is_binary=is_binary, random_state=42)
     model.sample(Y, n_burnin=n_burnin, n_samples=n_samples)
-    waic, se, p_waic = model.waic(is_binary=is_binary)
+    waic, se, p_waic = model.waic()
     return model, n_features, waic, se, p_waic
 
 
@@ -138,6 +138,7 @@ def backtest_selection_single(Y, n_heldout=5, is_binary=True, rw_order=2, n_feat
         data['auc'] = 1. - roc_auc_score(y_true, y_pred)
         data['aupr'] = 1. - average_precision_score(y_true, y_pred)
         data['logloss'] = log_loss(y_true, y_pred)
+    data['waic'], data['waic_se'], data['p_waic'] = model.waic()
 
     return model, data
 
