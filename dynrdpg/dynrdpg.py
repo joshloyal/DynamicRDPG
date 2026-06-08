@@ -128,7 +128,8 @@ class DynamicRDPG(object):
             n_nodes = Y[0].shape[0]
 
         n_dyads = int(0.5 * n_nodes * (n_nodes - 1))
-        self.y_vec_ = dynamic_adjacency_to_vec(Y, sparse=True, is_binary=self.is_binary)
+        self.y_vec_ = dynamic_adjacency_to_vec(
+                Y, sparse=True, is_binary=self.is_binary)
         rng = check_random_state(self.random_state)
         subdiag = np.tril_indices(n_nodes, k=-1)
         
@@ -200,8 +201,6 @@ class DynamicRDPG(object):
                 
                 # calculate P and its (upper) cholesky decomposition
                 precision = sp.dia_array((1. / sigma[i]) * K)
-                # XXX:
-                #precision.data[diag_loc] += 0.5 * scale
                 if self.prior_std is not None:
                     precision += K_init
 
