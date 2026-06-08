@@ -118,7 +118,7 @@ class DynamicRDPG(object):
         self.sample_scale = sample_scale
         self.random_state = random_state
 
-    def sample(self, Y, n_burnin=500, n_samples=2000):
+    def sample(self, Y, n_burnin=2500, n_samples=2500):
         
         if isinstance(Y, np.ndarray): 
             n_time_points, n_nodes, _ = Y.shape
@@ -200,6 +200,8 @@ class DynamicRDPG(object):
                 
                 # calculate P and its (upper) cholesky decomposition
                 precision = sp.dia_array((1. / sigma[i]) * K)
+                # XXX:
+                #precision.data[diag_loc] += 0.5 * scale
                 if self.prior_std is not None:
                     precision += K_init
 
