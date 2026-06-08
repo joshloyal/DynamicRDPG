@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from os.path import join
 
 
-node_sizes = [25, 50, 100, 200, 400]
+node_sizes = [25, 50, 100, 200, 400, 700, 1000]
 n_time_steps = 50
 densities = [0.3, 0.2, 0.1]
 nus = [0.5, 2.5] 

@@ -75,7 +75,7 @@ def simulation(seed, n_nodes=100, n_time_steps=100, density=0.2, gp_type='matern
 n_reps = 50
 
 for nu in [0.5, 2.5]:
-    for n_nodes in [25, 50, 100, 200, 400]:
+    for n_nodes in [25, 50, 100, 200, 400, 700, 1000]:
         for density in [0.1, 0.2, 0.3]:
             for i in range(n_reps):
                 simulation(i, n_nodes=n_nodes, n_time_steps=50, density=density, nu=nu)
