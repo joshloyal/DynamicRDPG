@@ -61,11 +61,11 @@ for dens_type in ['decreasing', 'increasing', 'logistic']:
     ax[1].legend(ncol=2, fontsize=14)
 
     if dens_type == 'increasing':
-        ax[0].set_title(r"$f_1(t) = 0.4 \sin\left(\pi t/m\right) + 0.1$", fontsize=fontsize)
+        ax[0].set_title(r"$\vartheta_1(t) = 0.4 \sin\left(\pi t/m\right) + 0.1$", fontsize=fontsize)
     elif dens_type == 'decreasing':
-        ax[0].set_title(r"$f_2(t) = -0.4 \sin\left(\pi t/m\right) + 0.5$", fontsize=fontsize)
+        ax[0].set_title(r"$\vartheta_2(t) = -0.4 \sin\left(\pi t/m\right) + 0.5$", fontsize=fontsize)
     else:
-        ax[0].set_title(r"$f_3(t) = 0.5 \left[1 + \exp\left\{-(t - m/2)/3\right\}\right]^{-1} + 0.1$", fontsize=fontsize)
+        ax[0].set_title(r"$\vartheta_3(t) = 0.5 \left[1 + \exp\left\{-(t - m/2)/3\right\}\right]^{-1} + 0.1$", fontsize=fontsize)
     ax[0].set_ylabel(r'Expected Edge Density', fontsize=fontsize)
     ax[1].set_ylabel(r'$\text{RMSE}_{\mathbf{X}}$', fontsize=fontsize)
 
