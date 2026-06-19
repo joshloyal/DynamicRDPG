@@ -27,6 +27,13 @@ you will need to run the cells in the corresponding Jupyter notebook:
 >>> jupyter notebook polecat_application/POLECAT\ Application.ipynb
 ```
 
+To run the backtesting procedure for the GB-DASE parameter tuning, you will need to run these commands.
+
+```bash
+>>> cd polecat_application/
+>>> python backtesting.py
+```
+
 ### Section C.1 (Visualization of Latent Trajectories)
 
 To produce Figure S.1 in the supplement, you will need to run the cells in the corresponding Jupyter notebook:
